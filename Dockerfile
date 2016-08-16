@@ -7,6 +7,7 @@ FROM python:2.7-alpine
 
 # Default port the webserver runs on
 EXPOSE 5000
+EXPOSE 4000
 
 # Working directory for the application
 WORKDIR /usr/src/app
