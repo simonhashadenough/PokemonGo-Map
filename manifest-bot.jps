@@ -58,7 +58,7 @@
             "nodeGroup": "cp",
             "nodeType": "docker",
             "docker": {
-              "image": "sych74/pokemongo-bot"
+              "image": "simonhashadenough/pokemongo-bot"
             }
           }
         ]
