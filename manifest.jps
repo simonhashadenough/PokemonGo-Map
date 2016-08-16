@@ -2,7 +2,7 @@
   "jpsType": "install",
   "application": {
     "name": "PokemonGo Map",
-    "homepage": "https://github.com/PokemonGoMap/PokemonGo-Map/",
+    "homepage": "https://github.com/simonhashadenough/PokemonGo-Map/",
     "description": "Find all the pokemon in your area... and more!",
     "logo": "https://raw.githubusercontent.com/sych74/PokemonGo-Map-in-Cloud/master/images/icon-70x70.png",
     "settings": {
