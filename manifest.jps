@@ -65,7 +65,7 @@
             "nodeGroup": "cp",
             "nodeType": "docker",
             "docker": {
-              "image": "simonhashadenough/pokemongo-map",
+              "image": "simonhashadenough/pokemongo-map:develop",
               "cmd": "-a \"${settings.auth}\" -u \"${settings.username}\" -p \"${settings.password}\" -l \"${settings.location}\" -st \"${settings.stepsAway}\" -k \"${settings.gmapKey}\" --port 80 -sd 10"
             }
           }
