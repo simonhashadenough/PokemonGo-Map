@@ -3,7 +3,7 @@
 #   docker build -t pokemongo-map .
 #   docker run -d -P pokemongo-map -a ptc -u YOURUSERNAME -p YOURPASSWORD -l "Seattle, WA" -st 10 --gmaps-key CHECKTHEWIKI
 
-FROM python:2.7-alpine
+FROM python:2.7.12-alpine
 
 # Default port the webserver runs on
 EXPOSE 5000
