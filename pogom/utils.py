@@ -9,9 +9,9 @@ import json
 from datetime import datetime, timedelta
 import logging
 import shutil
-import requests
 import platform
-import threading
+import pprint
+import time
 
 from . import config
 
@@ -86,9 +86,9 @@ def get_args():
                         help='Coordinates transformer for China',
                         action='store_true')
     parser.add_argument('-d', '--debug', help='Debug Mode', action='store_true')
-    parser.add_argument('-m', '--mock',
-                        help='Mock mode. Starts the web server but not the background thread.',
-                        action='store_true', default=False)
+    parser.add_argument('-m', '--mock', type=str,
+                        help='Mock mode - point to a fpgo endpoint instead of using the real PogoApi, ec: http://127.0.0.1:9090',
+                        default='')
     parser.add_argument('-ns', '--no-server',
                         help='No-Server Mode. Starts the searcher but not the Webserver.',
                         action='store_true', default=False)
@@ -139,14 +139,19 @@ def get_args():
     parser.add_argument('--db-port', help='Port for the database', type=int, default=3306)
     parser.add_argument('--db-max_connections', help='Max connections (per thread) for the database',
                         type=int, default=5)
+    parser.add_argument('--db-threads', help='Number of db threads; increase if the db queue falls behind',
+                        type=int, default=1)
     parser.add_argument('-wh', '--webhook', help='Define URL(s) to POST webhook information to',
                         nargs='*', default=False, dest='webhooks')
     parser.add_argument('--webhook-updates-only', help='Only send updates (pokémon & lured pokéstops)',
                         action='store_true', default=False)
+    parser.add_argument('--wh-threads', help='Number of webhook threads; increase if the webhook queue falls behind',
+                        type=int, default=1)
     parser.add_argument('--ssl-certificate', help='Path to SSL certificate file')
     parser.add_argument('--ssl-privatekey', help='Path to SSL private key file')
     parser.add_argument('-ps', '--print-status', action='store_true',
                         help='Show a status screen instead of log messages. Can switch between status and logs by pressing enter.', default=False)
+    parser.add_argument('-el', '--encrypt-lib', help='Path to encrypt lib to be used instead of the shipped ones')
     parser.set_defaults(DEBUG=False)
 
     args = parser.parse_args()
@@ -306,72 +311,74 @@ def get_pokemon_types(pokemon_id):
     return map(lambda x: {"type": i8ln(x['type']), "color": x['color']}, pokemon_types)
 
 
-def send_to_webhook(message_type, message):
-    args = get_args()
+def get_encryption_lib_path(args):
+    if args.encrypt_lib is not None:
+        lib_path = args.encrypt_lib
 
-    data = {
-        'type': message_type,
-        'message': message
-    }
-
-    def send_msg_to_webhook(msg, webhook):
-        try:
-            requests.post(w, json=msg, timeout=(None, 1))
-        except requests.exceptions.ReadTimeout:
-            log.debug('Response timeout on webhook endpoint %s', w)
-        except requests.exceptions.RequestException as e:
-            log.debug(e)
-
-    if args.webhooks:
-        webhooks = args.webhooks
-
-        for w in webhooks:
-            wh_thread = threading.Thread(target=send_msg_to_webhook, args=(data, w))
-            wh_thread.start()
-
-
-def get_encryption_lib_path():
-    # win32 doesn't mean necessarily 32 bits
-    if sys.platform == "win32" or sys.platform == "cygwin":
-        if platform.architecture()[0] == '64bit':
-            lib_name = "encrypt64bit.dll"
-        else:
-            lib_name = "encrypt32bit.dll"
-
-    elif sys.platform == "darwin":
-        lib_name = "libencrypt-osx-64.so"
-
-    elif os.uname()[4].startswith("arm") and platform.architecture()[0] == '32bit':
-        lib_name = "libencrypt-linux-arm-32.so"
-
-    elif os.uname()[4].startswith("aarch64") and platform.architecture()[0] == '64bit':
-        lib_name = "libencrypt-linux-arm-64.so"
-
-    elif sys.platform.startswith('linux'):
-        if "centos" in platform.platform():
-            if platform.architecture()[0] == '64bit':
-                lib_name = "libencrypt-centos-x86-64.so"
-            else:
-                lib_name = "libencrypt-linux-x86-32.so"
-        else:
-            if platform.architecture()[0] == '64bit':
-                lib_name = "libencrypt-linux-x86-64.so"
-            else:
-                lib_name = "libencrypt-linux-x86-32.so"
-
-    elif sys.platform.startswith('freebsd'):
-        lib_name = "libencrypt-freebsd-64.so"
-
+        if not os.path.isfile(lib_path):
+            err = "Could not find manually specified encryption library {}".format(lib_path)
+            log.error(err)
+            raise Exception(err)
     else:
-        err = "Unexpected/unsupported platform '{}'".format(sys.platform)
-        log.error(err)
-        raise Exception(err)
+        # win32 doesn't mean necessarily 32 bits
+        if sys.platform == "win32" or sys.platform == "cygwin":
+            if platform.architecture()[0] == '64bit':
+                lib_name = "encrypt64bit.dll"
+            else:
+                lib_name = "encrypt32bit.dll"
 
-    lib_path = os.path.join(os.path.dirname(__file__), "libencrypt", lib_name)
+        elif sys.platform == "darwin":
+            lib_name = "libencrypt-osx-64.so"
 
-    if not os.path.isfile(lib_path):
-        err = "Could not find {} encryption library {}".format(sys.platform, lib_path)
-        log.error(err)
-        raise Exception(err)
+        elif os.uname()[4].startswith("arm") and platform.architecture()[0] == '32bit':
+            lib_name = "libencrypt-linux-arm-32.so"
+
+        elif os.uname()[4].startswith("aarch64") and platform.architecture()[0] == '64bit':
+            lib_name = "libencrypt-linux-arm-64.so"
+
+        elif sys.platform.startswith('linux'):
+            if "centos" in platform.platform():
+                if platform.architecture()[0] == '64bit':
+                    lib_name = "libencrypt-centos-x86-64.so"
+                else:
+                    lib_name = "libencrypt-linux-x86-32.so"
+            else:
+                if platform.architecture()[0] == '64bit':
+                    lib_name = "libencrypt-linux-x86-64.so"
+                else:
+                    lib_name = "libencrypt-linux-x86-32.so"
+
+        elif sys.platform.startswith('freebsd'):
+            lib_name = "libencrypt-freebsd-64.so"
+
+        else:
+            err = "Unexpected/unsupported platform '{}'. If you have encrypt lib compiled for your platform, specify its location with '--encrypt-lib' parameter".format(sys.platform)
+            log.error(err)
+            raise Exception(err)
+
+        lib_path = os.path.join(os.path.dirname(__file__), "libencrypt", lib_name)
+
+        if not os.path.isfile(lib_path):
+            err = "Could not find {} encryption library {}".format(sys.platform, lib_path)
+            log.error(err)
+            raise Exception(err)
 
     return lib_path
+
+
+class Timer():
+
+    def __init__(self, name):
+        self.times = [(name, time.time(), 0)]
+
+    def add(self, step):
+        t = time.time()
+        self.times.append((step, t, round((t - self.times[-1][1]) * 1000)))
+
+    def checkpoint(self, step):
+        t = time.time()
+        self.times.append(('total @ ' + step, t, t - self.times[0][1]))
+
+    def output(self):
+        self.checkpoint('end')
+        pprint.pprint(self.times)
