@@ -1,0 +1,51 @@
+Options
+Pokémon Go Map
+Stats
+Marker Settings
+Pokémon
+
+Gyms
+
+Pokéstops
+
+Scanned Locations
+
+Spawn Points
+
+Hide Pokémon
+
+Location Settings
+Change scan location
+Lock marker
+
+Scan follows location
+
+Start at user's location
+
+Search
+
+Notification Settings
+Notify of Pokémon
+
+Notify of Rarity
+
+Notify with sound
+
+Style Settings
+Map Style
+Icons
+Icon Size
+                Small
+                Normal
+                Large
+                X-Large
+               
+Search Icon Marker
+Loading...
+
+Full Stats
+
+
+
+
+
